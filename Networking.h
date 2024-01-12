@@ -94,4 +94,4 @@ void WriteHandler(Connection& conn, const boost::system::error_code err_code, co
 
 vector<MouseData>    EncodeMouse();
 vector<KeyboardData> EncodeKeys();
-KeyStateMap DecodeKeys(const KeyboardData keys[], const int keyCount);
+KeyStateMap DecodeKeys(const KeyboardData keys[]);

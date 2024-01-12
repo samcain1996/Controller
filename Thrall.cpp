@@ -29,7 +29,7 @@ void ReceiveHandler(Connection& conn, const boost::system::error_code err_code, 
 	const int mouseY = DecodeByte(&conn.buf.data()[sizeof(mouseX)]);
 
 	KeyboardData* keys        = &conn.buf.data()[sizeof(mouseX) + sizeof(mouseY)];
-	KeyStateMap   decodedKeys = DecodeKeys(keys, KEY_BUFFER_SIZE);
+	KeyStateMap   decodedKeys = DecodeKeys(keys);
 
 	Sleep(0);
 
@@ -62,7 +62,7 @@ void SimulateInput(const KeyStateMap& keysToInput, const int cursorX, const int 
 
 }
 
-KeyStateMap DecodeKeys(const KeyboardData keys[], const int keyCount) {
+KeyStateMap DecodeKeys(const KeyboardData keys[]) {
 
 	// Protocol
 	//
