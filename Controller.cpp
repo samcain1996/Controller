@@ -45,7 +45,7 @@ void Poll(Connection& conn) {
 
 	// Disconnect
 	if (GetKeyState(VK_ESCAPE) & 0x800) {
-		Disconnect(conn);
+		conn.Disconnect();
 		return;
 	}
 
@@ -81,13 +81,13 @@ vector<MouseData> EncodeMouse() {
 
 void WriteHandler(Connection& conn, const boost::system::error_code err_code, const size_t bytes_transferred) {
 
-	if (!CheckSuccess(conn)) { Disconnect(conn); }
+	if (!CheckSuccess(conn)) { conn.Disconnect(); }
 
 }
 
 void Send(Connection& conn) {
 	
-	auto onWrite = bind(WriteHandler, std::ref(conn), std::placeholders::_1, std::placeholders::_2);
+	auto onWrite = bind(WriteHandler, ref(conn), std::placeholders::_1, std::placeholders::_2);
 
 	conn.socket.async_send(boost::asio::buffer(conn.buf.data(), conn.buf.size()), onWrite);
 }
@@ -103,7 +103,7 @@ vector<KeyboardData> EncodeKeys() {
 	for (const auto& keyCodeName : Keycode_Name_Map) {
 
 		KeyboardKey keycode		= keyCodeName.first;
-		bool		keystate	= GetKeyState(keycode) & 0x800;
+		bool		keystate	= true;//GetKeyState(keycode) & 0x800;
 
 		encodedKeys.push_back(keycode);
 		encodedKeys.push_back(keystate);

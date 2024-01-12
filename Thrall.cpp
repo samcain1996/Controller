@@ -16,44 +16,47 @@ void Thrall(const int port) {
 
 void Receive(Connection& conn) {
 
-	auto onReceive = bind(ReceiveHandler, std::ref(conn), std::placeholders::_1, std::placeholders::_2);
+	auto onReceive = bind(ReceiveHandler, ref(conn), std::placeholders::_1, std::placeholders::_2);
 
 	conn.socket.async_receive(boost::asio::buffer(conn.buf.data(), conn.buf.size()), onReceive);
 }
 
 void ReceiveHandler(Connection& conn, const boost::system::error_code err_code, const size_t bytes_transferred) {
 
-	if (!CheckSuccess(conn)) { Disconnect(conn); return; }
+	if (!CheckSuccess(conn)) { conn.Disconnect(); return; }
 
-	const int		mouseX = DecodeByte(conn.buf.data());
-	const int		mouseY = DecodeByte(&conn.buf.data()[sizeof(mouseX)]);
-	KeyboardData* keys = &conn.buf.data()[sizeof(mouseX) + sizeof(mouseY)];
+	const int mouseX = DecodeByte(conn.buf.data());
+	const int mouseY = DecodeByte(&conn.buf.data()[sizeof(mouseX)]);
 
-	KeyStateMap decodedKeys = DecodeKeys(keys, KEY_BUFFER_SIZE);
+	KeyboardData* keys        = &conn.buf.data()[sizeof(mouseX) + sizeof(mouseY)];
+	KeyStateMap   decodedKeys = DecodeKeys(keys, KEY_BUFFER_SIZE);
 
 	Sleep(0);
 
 	SimulateInput(decodedKeys, mouseX, mouseY);
+
 }
 
 void SimulateInput(const KeyStateMap& keysToInput, const int cursorX, const int cursorY) {
 
-	INPUT inputs[KEY_COUNT];
-	ZeroMemory(inputs, sizeof(inputs));
+	INPUT input;
+	vector<INPUT> inputs;
 
-	size_t index = 0;
-	for (auto [keycode, isDown] : keysToInput) {
+	for (const auto& [keycode, isDown] : keysToInput) {
+
+		ZeroMemory(&input, sizeof(INPUT));
 
 		if (!Keycode_Name_Map.contains(keycode)) { continue; }
 
-		inputs[index].type   = INPUT_KEYBOARD;
-		inputs[index].ki.wVk = keycode;
+		input.type       = INPUT_KEYBOARD;
+		input.ki.wVk     = keycode;
+		input.ki.dwFlags = !isDown & KEYEVENTF_KEYUP;
 
-		if (!isDown) { inputs[index].ki.dwFlags = KEYEVENTF_KEYUP; }
-		index++;
+		inputs.push_back(input);
+
 	}
 
-	SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
+	SendInput(inputs.size(), inputs.data(), sizeof(INPUT));
 
 	SetCursorPos(cursorX, cursorY);
 

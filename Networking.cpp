@@ -4,12 +4,12 @@ bool Connection::IsDisconnectMessage() const {
 	return buf[0] == QUIT_KEY;
 }
 
-void Disconnect(Connection& conn) {
+void Connection::Disconnect() {
 
-	conn.buf.fill('\0');
-	conn.buf[0] = QUIT_KEY;
-	conn.socket.send(boost::asio::buffer(conn.buf.data(), conn.buf.size()), 0, conn.err_code);
-	conn.connected = false;
+	buf.fill('\0');
+	buf[0] = QUIT_KEY;
+	socket.send(boost::asio::buffer(buf.data(), buf.size()), 0, err_code);
+	connected = false;
 
 }
 

@@ -22,7 +22,7 @@ using std::string;
 using std::bind;
 using std::ref;
 
-static const constexpr int KEY_COUNT = 14;
+static const constexpr short KEY_COUNT = 14;
 static const constexpr short KEY_BUFFER_SIZE = KEY_COUNT * 2;
 
 using KeyboardKey		= unsigned char;
@@ -74,9 +74,10 @@ struct Connection {
 	}
 
 	bool IsDisconnectMessage() const;
+	void Disconnect();
+
 };
 
-void Disconnect(Connection& conn);
 bool CheckSuccess(const Connection& conn);
 
 void Controller(const udp::endpoint& thrallIp, const int localIp = 15098);
