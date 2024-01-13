@@ -10,7 +10,7 @@
 #include <Windows.h>
 #include <functional>
 
-#define LOG 1
+#define DEBUG false
 
 using namespace std::chrono;
 using namespace boost::asio;
@@ -28,14 +28,14 @@ using std::min;
 
 static const constexpr short BUFFER_SIZE = UCHAR_MAX;
 
-#ifdef LOG 
+#ifdef DEBUG 
 static std::ostream& debugLog = std::cout;
 #else
 static std::ostream debugLog;
 #endif
 
 using Data				= unsigned char;
-using KeyStateMap		= unordered_map<Data, bool>;
+using ButtonStateMap		= unordered_map<Data, bool>;
 using ConnectionBuffer	= array<Data, BUFFER_SIZE>;
 using MousePosArray     = array<Data, sizeof(int) * 2>;
 
@@ -89,17 +89,16 @@ struct Connection {
 bool CheckSuccess(const Connection& conn);
 
 void Controller(const udp::endpoint& thrallIp, const int localIp = 15098);
-int TimeUntilNextPoll();
-void Poll(Connection& conn);
+int  TimeUntilNextPoll();
+void CaptureInput(Connection& conn);
 void Send(Connection& conn);
+void WriteHandler(Connection& conn, const boost::system::error_code err_code, const size_t bytes_transferred);
 
 void Thrall(const int port);
 void Receive(Connection& conn);
-void SimulateInput(const KeyStateMap& buttonsToInput, const int cursorX, const int cursorY);
-
-void WriteHandler(Connection& conn, const boost::system::error_code err_code, const size_t bytes_transferred);
+void SimulateInput(const ButtonStateMap& buttonsToInput, const int cursorX, const int cursorY);
 void ReceiveHandler(Connection& conn, const boost::system::error_code err_code, const size_t bytes_transferred);
 
-MousePosArray EncodeMousePosition();
-vector<Data> EncodeButtons();
-KeyStateMap DecodeKeys(const vector<Data>& buttons);
+vector<Data>   EncodeButtonStates();
+MousePosArray  EncodeMouseDelta();
+ButtonStateMap DecodeButtons(const vector<Data>& buttons);

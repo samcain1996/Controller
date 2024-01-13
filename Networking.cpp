@@ -8,7 +8,7 @@ void Connection::Disconnect() {
 
 	buf.fill('\0');
 	buf[0] = QUIT_KEY;
-	socket.send(boost::asio::buffer(buf.data(), buf.size()), 0, err_code);
+	socket.send(buffer(buf), 0, err_code);
 	connected = false;
 
 }

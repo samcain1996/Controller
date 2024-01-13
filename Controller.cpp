@@ -7,9 +7,10 @@ void Controller(const udp::endpoint& thrallIp, const int localIp) {
 	conn.socket.connect(thrallIp, conn.err_code);
 	conn.connected = conn.err_code.value() == 0;
 
-	Poll(conn);
-	conn.context.run();
+	if (!conn.connected) { return; }
 
+	CaptureInput(conn);
+	conn.context.run();
 
 }
 
@@ -32,9 +33,9 @@ int TimeUntilNextPoll() {
 	return 0;
 }
 
-void Poll(Connection& conn) {
+void CaptureInput(Connection& conn) {
 
-	// Only poll if enough time has passed
+	// Only get input if enough time has passed
 	int millis = TimeUntilNextPoll();
 	Sleep(millis);
 
@@ -44,12 +45,12 @@ void Poll(Connection& conn) {
 		return;
 	}
 
-#ifdef LOG
-	//Sleep(3000);
+#ifdef DEBUG
+	Sleep(3000);
 #endif
 
-	MousePosArray encodedMousePos         = EncodeMousePosition();
-	vector<Data> encodedButtons   = EncodeButtons();
+	vector<Data>  encodedButtons  = EncodeButtonStates();
+	MousePosArray encodedMousePos = EncodeMouseDelta();
 
 	copy(encodedMousePos.begin(), encodedMousePos.end(), conn.buf.begin());
 	copy(encodedButtons.begin(), encodedButtons.end(), conn.buf.begin() + encodedMousePos.size());
@@ -57,33 +58,29 @@ void Poll(Connection& conn) {
 
 }
 
-MousePosArray EncodeMousePosition() {
+MousePosArray EncodeMouseDelta() {
 
-	MousePosArray mousePosition;
+	MousePosArray encodedMouseDelta = {};
 
-	CURSORINFO cInfo;
-	ZeroMemory(&cInfo, sizeof(cInfo));
-	cInfo.cbSize = sizeof(cInfo);
-	GetCursorInfo(&cInfo);
-
-	static int prevX = cInfo.ptScreenPos.x;
-	static int prevY = cInfo.ptScreenPos.y;
+	POINT cursorPosition;
+	GetCursorPos(&cursorPosition);
 	
-	Data positionX[sizeof(int)];
-	Data positionY[sizeof(int)];
+	static POINT previousCursorPos = cursorPosition;
 	
-	EncodeByte(positionX, cInfo.ptScreenPos.x - prevX);
-	EncodeByte(positionY, cInfo.ptScreenPos.y - prevY);
+	Data deltaX[sizeof(int)];
+	Data deltaY[sizeof(int)];
+	
+	EncodeByte(deltaX, cursorPosition.x - previousCursorPos.x);
+	EncodeByte(deltaY, cursorPosition.y - previousCursorPos.y);
 	
 	for (int i = 0; i < sizeof(int); i++) {
-		mousePosition[i]               = positionX[i];
-		mousePosition[i + sizeof(int)] = positionY[i];
+		encodedMouseDelta[i]               = deltaX[i];
+		encodedMouseDelta[i + sizeof(int)] = deltaY[i];
 	}
 
-	prevX = cInfo.ptScreenPos.x;
-	prevY = cInfo.ptScreenPos.y;
+	previousCursorPos = cursorPosition;
 
-	return mousePosition;
+	return encodedMouseDelta;
 
 }
 
@@ -91,7 +88,7 @@ void WriteHandler(Connection& conn, const boost::system::error_code err_code, co
 
 	if (!CheckSuccess(conn)) { conn.Disconnect(); }
 
-	if (conn.connected) { Poll(conn); }
+	if (conn.connected) { CaptureInput(conn); }
 
 }
 
@@ -101,10 +98,10 @@ void Send(Connection& conn) {
 
 	size_t bytes_to_transfer = min(sizeof(int) * 2 + Buttoncode_Name_Map.size() * 2, conn.buf.size());
 
-	conn.socket.async_send(boost::asio::buffer(conn.buf.data(), bytes_to_transfer), onWrite);
+	conn.socket.async_send(buffer(conn.buf, bytes_to_transfer), onWrite);
 }
 
-vector<Data> EncodeButtons() {
+vector<Data> EncodeButtonStates() {
 
 	// Protocol
 	//
@@ -112,14 +109,17 @@ vector<Data> EncodeButtons() {
 	// | KEYCODE | STATE  |
 
 	vector<Data> encodedButtons;
-	for (const auto& buttonCodeName : Buttoncode_Name_Map) {
+	for (const auto& [buttoncode, buttonName] : Buttoncode_Name_Map) {
 
-		Data buttoncode  = buttonCodeName.first;
-		bool		buttonstate	= GetKeyState(buttoncode) & 0x800;
+		bool buttonstate = GetKeyState(buttoncode) & 0x800;
 
 		encodedButtons.push_back(buttoncode);
 		encodedButtons.push_back(buttonstate);
+
+		debugLog << buttonName << ":\t" << buttonstate << "\n";
 	}
+
+	debugLog << "\n";
 
 	return encodedButtons;
 
