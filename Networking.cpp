@@ -13,7 +13,6 @@ void Connection::Disconnect() {
 
 }
 
-
 bool CheckSuccess(const Connection& conn) {
-	return conn.err_code.value() == boost::system::errc::success && !conn.IsDisconnectMessage();
+	return conn.connected && conn.err_code.value() == boost::system::errc::success && !conn.IsDisconnectMessage();
 }

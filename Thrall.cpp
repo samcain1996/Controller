@@ -5,12 +5,8 @@ void Thrall(const int port) {
 	Connection conn(port);
 	conn.connected = true;
 
-	while (conn.connected) {
-
-		Receive(conn);
-		conn.context.run();
-		conn.context.restart();
-	}
+	Receive(conn);
+	conn.context.run();
 
 }
 
@@ -28,41 +24,51 @@ void ReceiveHandler(Connection& conn, const boost::system::error_code err_code, 
 	const int mouseX = DecodeByte(conn.buf.data());
 	const int mouseY = DecodeByte(&conn.buf.data()[sizeof(mouseX)]);
 
-	KeyboardData* keys        = &conn.buf.data()[sizeof(mouseX) + sizeof(mouseY)];
-	KeyStateMap   decodedKeys = DecodeKeys(keys);
-
-	Sleep(0);
+	Data* buttons        = &conn.buf.data()[sizeof(mouseX) + sizeof(mouseY)];
+	KeyStateMap   decodedKeys = DecodeKeys(buttons);
 
 	SimulateInput(decodedKeys, mouseX, mouseY);
 
+	if (conn.connected) { Receive(conn); }
+
 }
 
-void SimulateInput(const KeyStateMap& keysToInput, const int cursorX, const int cursorY) {
+void SimulateInput(const KeyStateMap& buttonsToInput, const int cursorX, const int cursorY) {
 
-	INPUT input;
 	vector<INPUT> inputs;
 
-	for (const auto& [keycode, isDown] : keysToInput) {
+	for (const auto& [buttoncode, isDown] : buttonsToInput) {
 
+		INPUT input;
 		ZeroMemory(&input, sizeof(INPUT));
 
-		if (!Keycode_Name_Map.contains(keycode)) { continue; }
+		if (!Keycode_Name_Map.contains(buttoncode)) { continue; }
 
-		input.type       = INPUT_KEYBOARD;
-		input.ki.wVk     = keycode;
-		input.ki.dwFlags = !isDown & KEYEVENTF_KEYUP;
+		switch (buttoncode) {
+		case VK_LBUTTON:
+			input.type = INPUT_MOUSE;
+			input.mi.dwFlags = isDown ? MOUSEEVENTF_LEFTDOWN : NULL;
+			break;
+		case VK_RBUTTON:
+			input.type = INPUT_MOUSE;
+			input.mi.dwFlags = isDown ? MOUSEEVENTF_RIGHTDOWN : NULL;
+			break;
+		default:
+			input.type = INPUT_KEYBOARD;
+			input.ki.wVk = buttoncode;
+			input.ki.dwFlags = isDown ? NULL : KEYEVENTF_KEYUP; 
+		};
 
 		inputs.push_back(input);
 
 	}
 
 	SendInput(inputs.size(), inputs.data(), sizeof(INPUT));
-
 	SetCursorPos(cursorX, cursorY);
 
 }
 
-KeyStateMap DecodeKeys(const KeyboardData keys[]) {
+KeyStateMap DecodeKeys(const Data buttons[]) {
 
 	// Protocol
 	//
@@ -77,7 +83,7 @@ KeyStateMap DecodeKeys(const KeyboardData keys[]) {
 	KeyStateMap decodedKeys;
 
 	for (size_t index = 0; index < KEY_BUFFER_SIZE; index += 2) {
-		decodedKeys[keys[index]] = (bool)keys[index + 1];
+		decodedKeys[buttons[index]] = (bool)buttons[index + 1];
 	}
 
 	return decodedKeys;

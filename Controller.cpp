@@ -7,81 +7,84 @@ void Controller(const udp::endpoint& thrallIp, const int localIp) {
 	conn.socket.connect(thrallIp, conn.err_code);
 	conn.connected = conn.err_code.value() == 0;
 
-	while (conn.connected) {
+	Poll(conn);
+	conn.context.run();
 
-		Poll(conn);
-		conn.context.run();
-		conn.context.restart();
-	}
 
 }
 
-bool ShouldPoll() {
-	// See how much time has passed since last time the input was polled
-	static steady_clock::time_point timeSinceLastPoll = timer.now();
-	int deltaMilli = duration_cast<milliseconds>(timer.now() - timeSinceLastPoll).count();
+int TimeUntilNextPoll() {
 
-	if (deltaMilli < (1000 / pollRateHz)) {
-		return false;
+	// Return how much time has passed since last time the input was polled
+	static steady_clock::time_point timeSinceLastPoll = timer.now();
+	
+	const int targetPollRate = 1000 / pollRateHz;
+	const int deltaMillis = duration_cast<milliseconds>(timer.now() - timeSinceLastPoll).count();
+
+	const int timeRemainingMillis = targetPollRate - deltaMillis;
+	
+	if (timeRemainingMillis > 0) {
+		return timeRemainingMillis;
 	}
 
 	timeSinceLastPoll = timer.now();
 
-	return true;
+	return 0;
 }
 
 void Poll(Connection& conn) {
 
 	// Only poll if enough time has passed
-	if (!ShouldPoll()) { return; }
+	int millis = TimeUntilNextPoll();
+	Sleep(millis);
 
-	Sleep(0); // DEBUG: Give sometime before polling 
-
-	vector<MouseData>    encodedMouse  = EncodeMouse();
-	vector<KeyboardData> encodedKeys   = EncodeKeys();
-
-	memcpy(conn.buf.data(), encodedMouse.data(), encodedMouse.size());
-	memcpy(&conn.buf.data()[encodedMouse.size()], encodedKeys.data(), encodedKeys.size());
-
-	// Disconnect
-	if (GetKeyState(VK_ESCAPE) & 0x800) {
+	// Check if quit button is pressed
+	if (GetKeyState(QUIT_KEY) & 0x800) {
 		conn.Disconnect();
 		return;
 	}
 
-	Send(conn);
+	Sleep(3000);
 
-	return;
+	MousePosArray encodedMousePos         = EncodeMousePosition();
+	vector<Data> encodedButtons   = EncodeButtons();
+
+	memcpy(conn.buf.data(), encodedMousePos.data(), encodedMousePos.size());
+	memcpy(&conn.buf.data()[encodedMousePos.size()], encodedButtons.data(), encodedButtons.size());
+
+	Send(conn);
 
 }
 
-vector<MouseData> EncodeMouse() {
+MousePosArray EncodeMousePosition() {
 
-	vector<MouseData> mouseData;
+	MousePosArray mousePosition;
 
 	CURSORINFO cInfo;
 	ZeroMemory(&cInfo, sizeof(cInfo));
 	cInfo.cbSize = sizeof(cInfo);
 	GetCursorInfo(&cInfo);
 	
-	MouseData positionX[sizeof(int)];
-	MouseData positionY[sizeof(int)];
+	Data positionX[sizeof(int)];
+	Data positionY[sizeof(int)];
 	
 	EncodeByte(positionX, cInfo.ptScreenPos.x);
 	EncodeByte(positionY, cInfo.ptScreenPos.y);
 	
 	for (int i = 0; i < sizeof(int); i++) {
-		mouseData.push_back(positionX[i]);
-		mouseData.push_back(positionY[i]);
+		mousePosition[i]               = positionX[i];
+		mousePosition[i + sizeof(int)] = positionY[i];
 	}
 
-	return mouseData;
+	return mousePosition;
 
 }
 
 void WriteHandler(Connection& conn, const boost::system::error_code err_code, const size_t bytes_transferred) {
 
 	if (!CheckSuccess(conn)) { conn.Disconnect(); }
+
+	if (conn.connected) { Poll(conn); }
 
 }
 
@@ -92,23 +95,23 @@ void Send(Connection& conn) {
 	conn.socket.async_send(boost::asio::buffer(conn.buf.data(), conn.buf.size()), onWrite);
 }
 
-vector<KeyboardData> EncodeKeys() {
+vector<Data> EncodeButtons() {
 
 	// Protocol
 	//
 	// | BYTE 1  | BYTE 2 |
 	// | KEYCODE | STATE  |
 
-	vector<KeyboardData> encodedKeys;
-	for (const auto& keyCodeName : Keycode_Name_Map) {
+	vector<Data> encodedButtons;
+	for (const auto& buttonCodeName : Keycode_Name_Map) {
 
-		KeyboardKey keycode		= keyCodeName.first;
-		bool		keystate	= true;//GetKeyState(keycode) & 0x800;
+		Data buttoncode  = buttonCodeName.first;
+		bool		buttonstate	= GetKeyState(buttoncode) & 0x800;
 
-		encodedKeys.push_back(keycode);
-		encodedKeys.push_back(keystate);
+		encodedButtons.push_back(buttoncode);
+		encodedButtons.push_back(buttonstate);
 	}
 
-	return encodedKeys;
+	return encodedButtons;
 
 }

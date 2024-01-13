@@ -22,26 +22,26 @@ using std::string;
 using std::bind;
 using std::ref;
 
-static const constexpr short KEY_COUNT = 14;
+static const constexpr short BUFFER_SIZE = UCHAR_MAX;
+static const constexpr short KEY_COUNT = 16;
 static const constexpr short KEY_BUFFER_SIZE = KEY_COUNT * 2;
 
-using KeyboardKey		= unsigned char;
-using KeyboardData		= KeyboardKey;
-using MouseData			= KeyboardData;
-using KeyStateMap		= unordered_map<KeyboardKey, bool>;
-using ConnectionBuffer	= array<KeyboardData, KEY_BUFFER_SIZE + 8>;
+using Data				= unsigned char;
+using KeyStateMap		= unordered_map<Data, bool>;
+using ConnectionBuffer	= array<Data, BUFFER_SIZE>;
+using MousePosArray     = array<Data, sizeof(int) * 2>;
 
-static const constexpr KeyboardKey QUIT_KEY = VK_ESCAPE;
+static const constexpr Data QUIT_KEY = VK_ESCAPE;
 
-static const unordered_map<KeyboardKey, string> Keycode_Name_Map = 
+static unordered_map<Data, string> Keycode_Name_Map = 
 { 
 	{ 'W', "W" }, { 'A', "A" }, { 'S', "S" }, { 'R', "R" },
 	{ 'D', "D" }, { 'E', "E" }, { 'F', "F" }, { 'C', "C" },
 	{ VK_SPACE, "Space" }, { VK_RETURN, "Enter" }, { VK_TAB, "Tab" }, { VK_SHIFT, "Shift" }, 
-	{ VK_CONTROL, "Control" }, { VK_CAPITAL, "Caps Lock" },
+	{ VK_CONTROL, "Control" }, { VK_CAPITAL, "Caps Lock" }, { VK_LBUTTON, "Left Click" }, { VK_RBUTTON, "Right Click" }
 };
 
-static const double pollRateHz = 180;
+static const double pollRateHz = 10;
 static steady_clock timer;
 
 constexpr void EncodeByte(unsigned char encodedNumber[4], const int numberToEncode) {
@@ -81,17 +81,17 @@ struct Connection {
 bool CheckSuccess(const Connection& conn);
 
 void Controller(const udp::endpoint& thrallIp, const int localIp = 15098);
-bool ShouldPoll();
+int TimeUntilNextPoll();
 void Poll(Connection& conn);
 void Send(Connection& conn);
 
 void Thrall(const int port);
 void Receive(Connection& conn);
-void SimulateInput(const KeyStateMap& keysToInput, const int cursorX, const int cursorY);
+void SimulateInput(const KeyStateMap& buttonsToInput, const int cursorX, const int cursorY);
 
-void ReceiveHandler(Connection& conn, const boost::system::error_code err_code, const size_t bytes_transferred);
 void WriteHandler(Connection& conn, const boost::system::error_code err_code, const size_t bytes_transferred);
+void ReceiveHandler(Connection& conn, const boost::system::error_code err_code, const size_t bytes_transferred);
 
-vector<MouseData>    EncodeMouse();
-vector<KeyboardData> EncodeKeys();
-KeyStateMap DecodeKeys(const KeyboardData keys[]);
+MousePosArray EncodeMousePosition();
+vector<Data> EncodeButtons();
+KeyStateMap DecodeKeys(const Data buttons[]);
