@@ -10,6 +10,8 @@
 #include <Windows.h>
 #include <functional>
 
+#define LOG 1
+
 using namespace std::chrono;
 using namespace boost::asio;
 using namespace boost::asio::ip;
@@ -21,10 +23,16 @@ using std::unordered_map;
 using std::string;
 using std::bind;
 using std::ref;
+using std::copy;
+using std::min;
 
 static const constexpr short BUFFER_SIZE = UCHAR_MAX;
-static const constexpr short KEY_COUNT = 16;
-static const constexpr short KEY_BUFFER_SIZE = KEY_COUNT * 2;
+
+#ifdef LOG 
+static std::ostream& debugLog = std::cout;
+#else
+static std::ostream debugLog;
+#endif
 
 using Data				= unsigned char;
 using KeyStateMap		= unordered_map<Data, bool>;
@@ -33,7 +41,7 @@ using MousePosArray     = array<Data, sizeof(int) * 2>;
 
 static const constexpr Data QUIT_KEY = VK_ESCAPE;
 
-static unordered_map<Data, string> Keycode_Name_Map = 
+static unordered_map<Data, string> Buttoncode_Name_Map = 
 { 
 	{ 'W', "W" }, { 'A', "A" }, { 'S', "S" }, { 'R', "R" },
 	{ 'D', "D" }, { 'E', "E" }, { 'F', "F" }, { 'C', "C" },
@@ -94,4 +102,4 @@ void ReceiveHandler(Connection& conn, const boost::system::error_code err_code, 
 
 MousePosArray EncodeMousePosition();
 vector<Data> EncodeButtons();
-KeyStateMap DecodeKeys(const Data buttons[]);
+KeyStateMap DecodeKeys(const vector<Data>& buttons);

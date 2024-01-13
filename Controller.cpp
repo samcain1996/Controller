@@ -44,14 +44,15 @@ void Poll(Connection& conn) {
 		return;
 	}
 
-	Sleep(3000);
+#ifdef LOG
+	//Sleep(3000);
+#endif
 
 	MousePosArray encodedMousePos         = EncodeMousePosition();
 	vector<Data> encodedButtons   = EncodeButtons();
 
-	memcpy(conn.buf.data(), encodedMousePos.data(), encodedMousePos.size());
-	memcpy(&conn.buf.data()[encodedMousePos.size()], encodedButtons.data(), encodedButtons.size());
-
+	copy(encodedMousePos.begin(), encodedMousePos.end(), conn.buf.begin());
+	copy(encodedButtons.begin(), encodedButtons.end(), conn.buf.begin() + encodedMousePos.size());
 	Send(conn);
 
 }
@@ -64,17 +65,23 @@ MousePosArray EncodeMousePosition() {
 	ZeroMemory(&cInfo, sizeof(cInfo));
 	cInfo.cbSize = sizeof(cInfo);
 	GetCursorInfo(&cInfo);
+
+	static int prevX = cInfo.ptScreenPos.x;
+	static int prevY = cInfo.ptScreenPos.y;
 	
 	Data positionX[sizeof(int)];
 	Data positionY[sizeof(int)];
 	
-	EncodeByte(positionX, cInfo.ptScreenPos.x);
-	EncodeByte(positionY, cInfo.ptScreenPos.y);
+	EncodeByte(positionX, cInfo.ptScreenPos.x - prevX);
+	EncodeByte(positionY, cInfo.ptScreenPos.y - prevY);
 	
 	for (int i = 0; i < sizeof(int); i++) {
 		mousePosition[i]               = positionX[i];
 		mousePosition[i + sizeof(int)] = positionY[i];
 	}
+
+	prevX = cInfo.ptScreenPos.x;
+	prevY = cInfo.ptScreenPos.y;
 
 	return mousePosition;
 
@@ -92,7 +99,9 @@ void Send(Connection& conn) {
 	
 	auto onWrite = bind(WriteHandler, ref(conn), std::placeholders::_1, std::placeholders::_2);
 
-	conn.socket.async_send(boost::asio::buffer(conn.buf.data(), conn.buf.size()), onWrite);
+	size_t bytes_to_transfer = min(sizeof(int) * 2 + Buttoncode_Name_Map.size() * 2, conn.buf.size());
+
+	conn.socket.async_send(boost::asio::buffer(conn.buf.data(), bytes_to_transfer), onWrite);
 }
 
 vector<Data> EncodeButtons() {
@@ -103,7 +112,7 @@ vector<Data> EncodeButtons() {
 	// | KEYCODE | STATE  |
 
 	vector<Data> encodedButtons;
-	for (const auto& buttonCodeName : Keycode_Name_Map) {
+	for (const auto& buttonCodeName : Buttoncode_Name_Map) {
 
 		Data buttoncode  = buttonCodeName.first;
 		bool		buttonstate	= GetKeyState(buttoncode) & 0x800;

@@ -14,7 +14,7 @@ void Receive(Connection& conn) {
 
 	auto onReceive = bind(ReceiveHandler, ref(conn), std::placeholders::_1, std::placeholders::_2);
 
-	conn.socket.async_receive(boost::asio::buffer(conn.buf.data(), conn.buf.size()), onReceive);
+	conn.socket.async_receive(boost::asio::buffer(conn.buf), onReceive);
 }
 
 void ReceiveHandler(Connection& conn, const boost::system::error_code err_code, const size_t bytes_transferred) {
@@ -24,7 +24,10 @@ void ReceiveHandler(Connection& conn, const boost::system::error_code err_code, 
 	const int mouseX = DecodeByte(conn.buf.data());
 	const int mouseY = DecodeByte(&conn.buf.data()[sizeof(mouseX)]);
 
-	vector<Data> buttons(conn.buf.begin() + sizeof(mouseX) + sizeof(mouseY), conn.buf.end());
+	const auto begin = conn.buf.begin() + sizeof(mouseX) + sizeof(mouseY);
+	const auto end   = conn.buf.begin() + bytes_transferred;
+
+	vector<Data> buttons(begin, end);
 	KeyStateMap decodedKeys = DecodeKeys(buttons);
 
 	SimulateInput(decodedKeys, mouseX, mouseY);
@@ -42,7 +45,7 @@ void SimulateInput(const KeyStateMap& buttonsToInput, const int cursorX, const i
 		INPUT input;
 		ZeroMemory(&input, sizeof(INPUT));
 
-		if (!Keycode_Name_Map.contains(buttoncode)) { continue; }
+		if (!Buttoncode_Name_Map.contains(buttoncode)) { continue; }
 
 		switch (buttoncode) {
 		case VK_LBUTTON:
@@ -61,14 +64,21 @@ void SimulateInput(const KeyStateMap& buttonsToInput, const int cursorX, const i
 
 		inputs.push_back(input);
 
-		debugLog << Keycode_Name_Map[buttoncode] << ":\t" << isDown << "\n";
+		debugLog << Buttoncode_Name_Map[buttoncode] << ":\t" << isDown << "\n";
 
 	}
+
+	INPUT cursorInput;
+	ZeroMemory(&cursorInput, sizeof(cursorInput));
+	cursorInput.type = INPUT_MOUSE;
+	cursorInput.mi.dx = cursorX;
+	cursorInput.mi.dy = cursorY;
+	cursorInput.mi.dwFlags = MOUSEEVENTF_MOVE;
 
 	debugLog << "\n";
 
 	SendInput(inputs.size(), inputs.data(), sizeof(INPUT));
-	SetCursorPos(cursorX, cursorY);
+	SendInput(1, &cursorInput, sizeof(INPUT));
 
 }
 
