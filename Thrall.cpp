@@ -24,8 +24,8 @@ void ReceiveHandler(Connection& conn, const boost::system::error_code err_code, 
 	const int mouseX = DecodeByte(conn.buf.data());
 	const int mouseY = DecodeByte(&conn.buf.data()[sizeof(mouseX)]);
 
-	Data* buttons        = &conn.buf.data()[sizeof(mouseX) + sizeof(mouseY)];
-	KeyStateMap   decodedKeys = DecodeKeys(buttons);
+	vector<Data> buttons(conn.buf.begin() + sizeof(mouseX) + sizeof(mouseY), conn.buf.end());
+	KeyStateMap decodedKeys = DecodeKeys(buttons);
 
 	SimulateInput(decodedKeys, mouseX, mouseY);
 
@@ -61,14 +61,18 @@ void SimulateInput(const KeyStateMap& buttonsToInput, const int cursorX, const i
 
 		inputs.push_back(input);
 
+		debugLog << Keycode_Name_Map[buttoncode] << ":\t" << isDown << "\n";
+
 	}
+
+	debugLog << "\n";
 
 	SendInput(inputs.size(), inputs.data(), sizeof(INPUT));
 	SetCursorPos(cursorX, cursorY);
 
 }
 
-KeyStateMap DecodeKeys(const Data buttons[]) {
+KeyStateMap DecodeKeys(const vector<Data>& buttons) {
 
 	// Protocol
 	//
@@ -82,7 +86,7 @@ KeyStateMap DecodeKeys(const Data buttons[]) {
 
 	KeyStateMap decodedKeys;
 
-	for (size_t index = 0; index < KEY_BUFFER_SIZE; index += 2) {
+	for (size_t index = 0; index < buttons.size(); index += 2) {
 		decodedKeys[buttons[index]] = (bool)buttons[index + 1];
 	}
 
